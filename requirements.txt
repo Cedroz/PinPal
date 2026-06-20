@@ -1,6 +1,6 @@
 anthropic>=0.40.0
 opencv-python>=4.9.0
-deepgram-sdk>=3.0.0
+deepgram-sdk==3.7.0
 redis[hiredis]>=5.0.0
 python-dotenv>=1.0.0
 numpy>=1.26.0
