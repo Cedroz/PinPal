@@ -3,7 +3,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 DEEPGRAM_API_KEY = os.environ["DEEPGRAM_API_KEY"]
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 SENTRY_DSN = os.getenv("SENTRY_DSN", "")
