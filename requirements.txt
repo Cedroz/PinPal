@@ -1,0 +1,14 @@
+anthropic>=0.40.0
+opencv-python>=4.9.0
+deepgram-sdk>=3.0.0
+redis[hiredis]>=5.0.0
+python-dotenv>=1.0.0
+numpy>=1.26.0
+mcp>=1.0.0
+sentry-sdk>=2.0.0
+
+# Audio playback on Pi/Linux: sudo apt-get install mpg123
+# pyaudio requires portaudio: sudo apt-get install portaudio19-dev
+pyaudio>=0.2.14
+
+# arize-otel -- uncomment when doing Phase 7.2
