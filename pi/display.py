@@ -27,7 +27,7 @@ except ImportError:  # run as a plain script from the pi/ dir
 # --- palette --------------------------------------------------------------
 BG        = (16, 16, 20)
 ORANGE    = (217, 119, 87)     # Claude clay
-EYE       = (245, 245, 245)
+EYE       = BG                 # eyes match the background
 GOLD      = (235, 180, 90)     # shimmer base
 WHITE     = (255, 255, 255)
 
