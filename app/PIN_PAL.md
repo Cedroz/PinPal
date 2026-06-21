@@ -22,7 +22,8 @@ write firmware  →  flash to target  →  observe with the probe  →  iterate
 
 ### Decisions locked (from this session)
 - **Name:** **Pin Pal.**
-- **Transport:** HTTP/SSE MCP server on the Pi; laptop connects over LAN.
+- **Transport:** HTTP/SSE MCP server on the Pi; laptop connects **over an SSH tunnel, never
+  direct LAN** (the tunnel forwards a local port to the Pi's `:8000`).
 - **Voltage sensing:** **Digital-only** — no ADC. `read_gpio` reports logic HIGH/LOW
   (3.3V threshold) only. **Pitch line:** *"your code drives GPIO17 HIGH, the probe on that
   pin reads LOW, and the camera shows the jumper isn't seated — your wire fell out."*
@@ -50,7 +51,7 @@ write firmware  →  flash to target  →  observe with the probe  →  iterate
 ## Architecture
 
 ```
-Laptop (Claude Code) ──HTTP/SSE over LAN──> Pi MCP server "pin-pal" (FastMCP, :8000)
+Laptop (Claude Code) ──HTTP/SSE over SSH tunnel──> Pi MCP server "pin-pal" (FastMCP, :8000)
                                                   │
                 ┌─────────────┬──────────────┬────┴────────┬──────────────┐
              I2C bus      GPIO (digital)   Pi Camera    USB-serial   flash / deploy
@@ -115,7 +116,7 @@ ngspice export + Claude-drives-the-sim = explicit stretch. The companion service
 component from the Pi MCP probe server.
 
 ## Hardware / Bill of materials
-- Raspberry Pi (4 or 5; Zero 2 W works) with Pi OS Bookworm, on the same LAN as the laptop.
+- Raspberry Pi (4 or 5; Zero 2 W works) with Pi OS Bookworm, reachable from the laptop over SSH.
 - Pi Camera Module on a gooseneck/arm pointed at the breadboard.
 - Female–female + female–male jumper wires (probe leads: Pi header → target SDA/SCL/TX/RX/GND/3V3).
 - Target board for the demo (e.g. ESP32 / Arduino + an I2C sensor such as BME280 @ `0x76`),
@@ -231,22 +232,17 @@ Notes:
 
 ## Laptop — connect Claude Code to Pin Pal
 
-If your laptop and the Pi are on the **same LAN** and direct HTTP between them is reliable:
-```bash
-claude mcp add --transport http pin-pal http://<PI_LAN_IP>:8000/mcp
-```
-
-In practice (e.g. hackathon venue WiFi), laptops and the Pi often end up on **different
-networks**, and direct HTTP between them can be unreliable or fully blocked even when SSH
-isn't. For that case use the team scripts instead — they tunnel MCP traffic over SSH, which
-has been the reliable path:
+Connection is **always over an SSH tunnel — never a direct LAN/HTTP add.** Even when the Pi
+is on the same network, venue WiFi often blocks or flakes on direct HTTP while SSH stays
+reliable, so the tunnel is the one supported path. Use the team script:
 
 ```bash
 ./scripts/pinpal_connect.sh      # one-time per teammate, safe to re-run
 ```
 First run generates you a dedicated SSH key and prints it for the Pi's owner to authorize via
 `./scripts/pinpal_authorize.sh "<your pubkey line>"`. After that it opens a self-healing SSH
-tunnel (auto-reconnects on drop) and runs `claude mcp add` for you, pointed at the tunnel.
+tunnel (auto-reconnects on drop), forwards the Pi's `:8000` to a local port, and runs
+`claude mcp add --transport http pin-pal http://localhost:<port>/mcp` for you.
 
 Verify with `/mcp` or `claude mcp list` — the six tools should list as Connected. Then
 *"my BME280 isn't reading"* makes Claude call `scan_i2c` first; *"make the LED blink when the

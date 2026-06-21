@@ -1,122 +1,60 @@
-# Pin Pal — laptop side (`app/`)
+# Pin Pal — Setup
 
-The companion that runs on the **developer's laptop**, next to the Pi's `pin-pal` probe
-server. This folder is **Person B's piece**: the netlist confirmation UI and the MCP gate
-that opens it.
+Pin Pal is two MCP servers:
 
-When the vision agent parses a breadboard photo into a netlist, Claude calls the
-`confirm_netlist` tool. That pops a **desktop window** (react-flow circuit editor wrapped
-in a native pywebview window), the user fixes any mistakes, and the **approved** netlist is
-returned to the chat. Nothing the agent merely *guessed* reaches the model — only what a
-human confirmed. This is the human-gate step from [PIN_PAL.md](PIN_PAL.md#L80-L115).
+- **`pin-pal-ui`** — runs on your **laptop** (this `app/` folder). The netlist confirm window.
+- **`pin-pal`** — runs on the **Pi**. The hardware probes (`scan_i2c`, `read_gpio`, `capture_circuit`, …).
 
-```
-vision agent ──netlist JSON──► confirm_netlist()  ──►  pywebview window (react-flow)
- (Person A)                      (pin-pal-ui MCP)         user edits + approves
-                                       ▲                         │
-                                       └──── corrected netlist ───┘
-```
+## Application side (your laptop)
 
-## Layout
-
-| Path | What it is |
-| --- | --- |
-| `schema.py` | **The contract.** Netlist shape (components + nets) + validation. Mirrors `web/src/netlist.ts`. Shared with Person A. |
-| `sample_netlist.json` | A worked LED-circuit netlist used as a fixture / dev fallback. |
-| `web/` | React + `@xyflow/react` editor (Vite). Built to `web/dist/`. |
-| `netlist_window.py` | Standalone pywebview window. Reads netlist on stdin, returns the corrected one. Run as a subprocess. |
-| `ui_server.py` | `pin-pal-ui` stdio MCP server exposing `confirm_netlist`. |
-
-## How the pieces fit
-
-- **`confirm_netlist` blocks** until the user approves. It launches `netlist_window.py` as a
-  **subprocess** — pywebview's event loop can only start once per process and must not share
-  a thread with the MCP server's asyncio loop, so one fresh subprocess per confirmation is
-  the clean design.
-- **Edges are the source of truth.** In the editor, wires are react-flow edges. On approve,
-  nets are rebuilt from the edge graph via union-find (`web/src/netlist.ts`), so the user can
-  add / delete / reconnect wires freely and connectivity is recovered correctly.
-
-## Setup
-
-**1. Build the web UI** (produces `web/dist/`, which the window loads over `file://`):
+One idempotent script does the whole laptop setup — builds the UI, creates the venv,
+installs deps, fixes up the `pin-pal-ui` MCP, and (step 4) prompts for the Pi's IP to
+connect `pin-pal`. Safe to re-run; each step is skipped when already done.
 
 ```bash
-cd app/web
-npm install
-npm run build      # or: npm run dev  — opens the editor in a browser with the sample netlist
+./onboard.sh
 ```
 
-**2. Python env + a webview backend.** pywebview needs a native webview to render.
+Needs `node`/`npm`, `python3`, and the `claude` CLI on PATH. On Linux the Qt webview
+backend installs via pip (no sudo, no `--system-site-packages`). macOS/Windows use the
+OS-native webview — nothing extra.
+
+Verify:
 
 ```bash
-cd app
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
+claude mcp list      # pin-pal-ui → Connected
 ```
 
-On **Linux** `requirements.txt` pulls the Qt backend (qtpy + PySide6) via pip — self-contained,
-no `sudo`, and no `--system-site-packages` venv. `netlist_window.py` selects Qt automatically.
-Prefer system **GTK** instead? Recreate the venv with `--system-site-packages`, `apt install
-python3-gi gir1.2-gtk-4.0 gir1.2-webkit-6.0`, and run with `PYWEBVIEW_GUI=gtk`.
+Notes:
+- The confirm window needs a **graphical session** — run `claude` from a terminal *inside*
+  your desktop (so `DISPLAY`, `XAUTHORITY`, `DBUS_SESSION_BUS_ADDRESS` are inherited). A bare
+  SSH shell won't render it.
+- Edits can take minutes, and the tool call blocks the whole time. If you expect long edits,
+  raise the timeout in `~/.claude/settings.json`: `{ "env": { "API_TIMEOUT_MS": "1200000" } }`.
 
-**macOS/Windows** need no backend — pywebview uses the OS-native webview.
+## Pi side (the probe server)
 
-## Wire it into Claude Code
-
-`.mcp.json` at the repo root already registers the stdio server (relative paths resolve from
-the project root):
-
-```json
-{ "mcpServers": { "pin-pal-ui": { "type": "stdio",
-  "command": "app/.venv/bin/python", "args": ["app/ui_server.py"] } } }
-```
-
-The Pi's probe server is added separately (it's HTTP, on the LAN):
+On the **Pi**, start the probe server:
 
 ```bash
-claude mcp add --transport http pin-pal http://<PI_LAN_IP>:8000/mcp
+cd pi
+pip install -r ../requirements.txt
+sudo apt-get install -y python3-picamera2 arduino-cli i2c-tools   # system packages
+python server.py                                                  # serves on 0.0.0.0:8000
 ```
 
-**Long-edit timeout.** `confirm_netlist` blocks while the user edits — this can take minutes.
-The relevant timeout is `API_TIMEOUT_MS` (default **10 min**), which governs the whole tool
-call. It is **not** settable in `.mcp.json`'s `env` block (that only configures the
-subprocess). If you expect edits longer than 10 minutes, set it on the Claude Code process —
-e.g. in `~/.claude/settings.json`:
+Then connect from your laptop. Connection is **always over an SSH tunnel — never a direct
+LAN/HTTP add.** `./scripts/pinpal_connect.sh` generates a key, forwards the Pi's `:8000` to a
+local port, and registers `pin-pal` (pointed at `localhost`) for you:
 
-```json
-{ "env": { "API_TIMEOUT_MS": "1200000" } }
+```bash
+./scripts/pinpal_connect.sh
 ```
 
-## Dev loop without the Pi
+(`./onboard.sh` runs this same tunnel step as part of full first-time setup.)
 
-`npm run dev` runs the editor in a plain browser. With no pywebview host present, `bridge.ts`
-falls back to the baked-in sample netlist and logs Approve/Cancel to the console — so the
-whole editor is iterable standalone, no Pi or MCP server needed.
+Verify:
 
-## Verified
-
-- `web` builds clean (`npm run build`).
-- `schema.py` round-trips and rejects malformed netlists.
-- `confirm_netlist` registers and rejects bad input before opening a window.
-- netlist → graph → netlist round-trip preserves connectivity and net names; user wire edits
-  re-derive nets correctly (union-find).
-- **Live window renders and the JS↔Python bridge works** (Qt backend on a real X session):
-  the page loads, resolves `window.pywebview.api`, and `get_netlist` round-trips to Python.
-
-**Not auto-tested:** the human clicking *Approve* (the `submit` path is wired the same way as
-the verified `get_netlist`).
-
-### Display / environment
-
-The window must open in a **graphical session**. Run `claude` from a terminal *inside* your
-desktop session so `DISPLAY`, `XAUTHORITY`, and `DBUS_SESSION_BUS_ADDRESS` are set — the MCP
-server and the window subprocess inherit them. A bare SSH shell without those won't render.
-(If you hit `Cannot create platform OpenGL context`, force EGL: `QT_XCB_GL_INTEGRATION=xcb_egl`.)
-
-## Contract with Person A (vision agent)
-
-The seam is `schema.py` (the netlist JSON) and the `confirm_netlist(netlist) -> {status, netlist}`
-tool. Person A emits a netlist matching the schema and calls `confirm_netlist`; the approved
-result is what flows into the chat. Keep `schema.py` and `web/src/netlist.ts` in lockstep.
+```bash
+claude mcp list      # pin-pal → Connected (6 tools)
+```

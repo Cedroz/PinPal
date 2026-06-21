@@ -42,11 +42,9 @@ Then re-run `./scripts/pinpal_connect.sh` yourself. It should now succeed: it op
 self-healing SSH tunnel (auto-reconnects if it drops) and registers the Pi with Claude Code
 automatically. You won't need to repeat this step again on this machine.
 
-If your laptop is on the **same network** as the Pi, you can skip the script entirely and
-connect directly instead:
-```bash
-claude mcp add --transport http pin-pal http://<PI_LAN_IP>:8000/mcp
-```
+Connection is **always over the SSH tunnel** — never a direct LAN/HTTP connection to the Pi.
+The tunnel forwards a local port to the Pi's `:8000`, so Claude Code talks to `localhost`
+and SSH carries the traffic (works across networks, encrypted, and survives WiFi drops).
 
 ## 2. Start a fresh Claude Code session
 

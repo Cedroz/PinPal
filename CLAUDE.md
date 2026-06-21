@@ -68,5 +68,5 @@ When asked to build something:
 ## What Pin Pal is
 
 A Raspberry Pi clips onto a breadboard/target and exposes its buses as MCP tools.
-Claude Code on the laptop connects over LAN (HTTP/SSE) and closes the full hardware loop:
+Claude Code on the laptop connects over an SSH tunnel (never direct LAN) and closes the full hardware loop:
 write firmware → flash to target → observe with probe → iterate.
