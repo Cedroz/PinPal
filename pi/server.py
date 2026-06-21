@@ -6,7 +6,7 @@ Run on the Pi:
 
 Connect from laptop:
   claude mcp add --transport http pin-pal http://<PI_LAN_IP>:8000/mcp
-  Verify with /mcp — should list 6 tools.
+  Verify with /mcp — should list 2 tools (capture_image, capture_circuit).
 """
 
 import base64
@@ -25,7 +25,7 @@ mcp = FastMCP("pin-pal", host="0.0.0.0", port=8000)
 # READ TOOLS (sense)
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+# @mcp.tool()  # not exposed — only the capture tools are registered
 def scan_i2c(bus: int = 1) -> dict:
     """
     Scan an I2C bus and return all responding 7-bit device addresses in hex.
@@ -48,7 +48,7 @@ def scan_i2c(bus: int = 1) -> dict:
         return {"error": str(e), "hint": "Is I2C enabled? Run: sudo raspi-config → Interface Options → I2C"}
 
 
-@mcp.tool()
+# @mcp.tool()  # not exposed — only the capture tools are registered
 def read_gpio(pin: int) -> dict:
     """
     Read one GPIO pin as digital HIGH or LOW (BCM numbering).
@@ -66,7 +66,7 @@ def read_gpio(pin: int) -> dict:
         return {"error": str(e)}
 
 
-@mcp.tool()
+# @mcp.tool()  # not exposed — only the capture tools are registered
 def read_serial(
     port: str = "/dev/ttyUSB0",
     baud: int = 9600,
@@ -113,7 +113,8 @@ def capture_image(filename: str | None = None) -> list[ImageContent]:
     Returns viewable image content so Claude can see wiring, component orientation,
     LED state, display output, and loose jumpers.
     IMPORTANT: Vision is a hypothesis generator, not an oracle.
-    Always confirm any wiring claim with scan_i2c or read_gpio before acting on it.
+    Always confirm any wiring claim by invoking the pin-pal-ui MCP (confirm_netlist)
+    before acting on it.
     """
     try:
         from picamera2 import Picamera2
@@ -221,7 +222,7 @@ def capture_circuit(filename: str | None = None) -> list[ImageContent]:
 # WRITE TOOLS (reach)
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+# @mcp.tool()  # not exposed — only the capture tools are registered
 def flash_firmware(
     source: str,
     board: str,
@@ -297,7 +298,7 @@ def _flash_micropython(source: str, port: str) -> dict:
         os.remove(tmp)
 
 
-@mcp.tool()
+# @mcp.tool()  # not exposed — only the capture tools are registered
 def deploy_run(
     source: str,
     host: str,

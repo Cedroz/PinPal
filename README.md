@@ -10,8 +10,10 @@ This doc is the practical "how do I actually use this" guide. For the full desig
 
 ## What works right now
 
-- The Pi (hostname `pinpal`) is already running, with all 6 tools live: `scan_i2c`,
-  `read_gpio`, `read_serial`, `capture_image`, `flash_firmware`, `deploy_run`.
+- The Pi (hostname `pinpal`, reachable as `pinpal.local`) runs all 6 tools: `scan_i2c`,
+  `read_gpio`, `read_serial`, `capture_image`, `flash_firmware`, `deploy_run`. Once its owner
+  has run `./pi/provision.sh` once, the dependencies are installed and the venv auto-activates on
+  login — start the server by hand with `python pi/server.py`.
 - The camera works and is verified.
 - **No target board or sensor is wired up by default.** Until you connect one, `scan_i2c`
   will report an empty bus and `read_serial`/`flash_firmware` have nothing to talk to —
@@ -21,6 +23,19 @@ This doc is the practical "how do I actually use this" guide. For the full desig
   the Pi yet — that happens whenever someone first needs to flash an actual board.
 - The netlist/web-verification UI (a teammate's separate companion service) is **not**
   merged into `main` yet and isn't part of this flow.
+
+## Pi owner: one-time setup
+
+If you're the one who owns the Pi, run this **once on the Pi** to set up its dependencies:
+
+```bash
+./pi/provision.sh
+```
+
+It installs system deps, enables I2C, sets the hostname to `pinpal` (so it advertises
+`pinpal.local`), builds a `--system-site-packages` venv, and auto-activates that venv on login —
+after which you can start the probe server by hand with `python pi/server.py` (no venv to
+reactivate). Everyone else skips this and goes straight to step 1.
 
 ## 1. Connect Claude Code to the Pi
 
@@ -41,6 +56,10 @@ remotely, it doesn't run there), they run:
 Then re-run `./scripts/pinpal_connect.sh` yourself. It should now succeed: it opens a
 self-healing SSH tunnel (auto-reconnects if it drops) and registers the Pi with Claude Code
 automatically. You won't need to repeat this step again on this machine.
+
+The script finds the Pi at `pinpal.local` over mDNS — no IP to configure. On Linux that needs
+`avahi-daemon`/`libnss-mdns` installed (macOS has it built in); if mDNS isn't available, pass the
+Pi's IP directly: `PINPAL_HOST=<pi-ip> ./scripts/pinpal_connect.sh`.
 
 Connection is **always over the SSH tunnel** — never a direct LAN/HTTP connection to the Pi.
 The tunnel forwards a local port to the Pi's `:8000`, so Claude Code talks to `localhost`

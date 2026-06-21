@@ -1,13 +1,6 @@
-import os
 from dotenv import load_dotenv
 
 load_dotenv()
-
-DEEPGRAM_API_KEY = os.environ["DEEPGRAM_API_KEY"]
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-SENTRY_DSN = os.getenv("SENTRY_DSN", "")
-ARIZE_API_KEY = os.getenv("ARIZE_API_KEY", "")
-ARIZE_SPACE_KEY = os.getenv("ARIZE_SPACE_KEY", "")
 
 CAMERA_INDEX = 0
 FRAME_WIDTH = 1280

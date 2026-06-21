@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-PI_HOST="${PINPAL_HOST:-10.43.235.204}"
+PI_HOST="${PINPAL_HOST:-pinpal.local}"
 PI_USER="${PINPAL_USER:-pinpal}"
 KEY="$HOME/.ssh/pinpal_ed25519"
 

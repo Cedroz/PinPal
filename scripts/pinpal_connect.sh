@@ -13,12 +13,12 @@
 # Safe to re-run any time (e.g. after sleep/reconnect) — it cleans up its
 # previous tunnel first.
 #
-# Override defaults if needed:
+# Override defaults if needed (e.g. if mDNS isn't available, pass the Pi's IP):
 #   PINPAL_HOST=10.43.235.204 PINPAL_USER=pinpal ./scripts/pinpal_connect.sh
 
 set -euo pipefail
 
-PI_HOST="${PINPAL_HOST:-10.43.235.204}"
+PI_HOST="${PINPAL_HOST:-pinpal.local}"
 PI_USER="${PINPAL_USER:-pinpal}"
 PI_REMOTE_PORT="${PINPAL_REMOTE_PORT:-8000}"
 KEY="$HOME/.ssh/pinpal_ed25519"
@@ -36,6 +36,22 @@ if [ ! -f "$KEY" ]; then
   ssh-keygen -t ed25519 -f "$KEY" -N "" -C "pinpal-deploy-$(whoami)" -q
 fi
 PUBKEY="$(cat "$KEY.pub")"
+
+# 1b. If we're using the default mDNS name, make sure it resolves before we try
+#     SSH — otherwise the failure surfaces as a confusing SSH timeout instead of
+#     a clear "can't find the Pi" message. (Skipped when an IP/host was passed.)
+if [ "$PI_HOST" = "pinpal.local" ]; then
+  if ! getent hosts "$PI_HOST" >/dev/null 2>&1 && ! ping -c1 -W2 "$PI_HOST" >/dev/null 2>&1; then
+    echo
+    echo "Couldn't resolve '$PI_HOST' over mDNS. Either the Pi is off / not on this"
+    echo "network, or your machine can't do mDNS lookups. Fixes:"
+    echo "  - Linux: sudo apt-get install -y avahi-daemon libnss-mdns"
+    echo "  - macOS: built in — check the Pi is powered on and on the same LAN"
+    echo "  - or skip mDNS entirely: PINPAL_HOST=<pi-ip> ./scripts/pinpal_connect.sh"
+    echo
+    exit 1
+  fi
+fi
 
 # 2. Is it trusted yet?
 if ! ssh -o BatchMode=yes -o ConnectTimeout=6 -o IdentitiesOnly=yes -i "$KEY" \

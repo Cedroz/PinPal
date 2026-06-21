@@ -34,21 +34,26 @@ Notes:
 
 ## Pi side (the probe server)
 
-On the **Pi**, start the probe server:
+This is a **one-time** step, run on the **Pi** by its owner. It sets up the dependencies and
+makes the Pi reachable as `pinpal.local`:
 
 ```bash
-cd pi
-pip install -r ../requirements.txt
-sudo apt-get install -y python3-picamera2 arduino-cli i2c-tools   # system packages
-python server.py                                                  # serves on 0.0.0.0:8000
+./pi/provision.sh
 ```
 
+It installs the system packages (`python3-picamera2`, `arduino-cli`, `i2c-tools`, `avahi-daemon`),
+enables I2C, creates a `--system-site-packages` venv (so the apt-installed `picamera2` is visible
+to the camera tools), installs the deps, and auto-activates that venv on login. Start the probe
+server by hand with `python pi/server.py` — no venv to reactivate.
+
 Then connect from your laptop. Connection is **always over an SSH tunnel — never a direct
-LAN/HTTP add.** `./scripts/pinpal_connect.sh` generates a key, forwards the Pi's `:8000` to a
-local port, and registers `pin-pal` (pointed at `localhost`) for you:
+LAN/HTTP add.** `./scripts/pinpal_connect.sh` defaults to `pinpal.local` (mDNS), generates a key,
+forwards the Pi's `:8000` to a local port, and registers `pin-pal` (pointed at `localhost`) for you.
+On Linux, mDNS needs `avahi-daemon`/`libnss-mdns` (macOS has it built in); or pass an IP with
+`PINPAL_HOST=<pi-ip>`.
 
 ```bash
-./scripts/pinpal_connect.sh
+./scripts/pinpal_connect.sh          # uses pinpal.local; or PINPAL_HOST=<pi-ip>
 ```
 
 (`./onboard.sh` runs this same tunnel step as part of full first-time setup.)
