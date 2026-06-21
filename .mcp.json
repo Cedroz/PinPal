@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "pin-pal-ui": {
+      "type": "stdio",
+      "command": "app/.venv/bin/python",
+      "args": ["app/ui_server.py"]
+    }
+  }
+}
