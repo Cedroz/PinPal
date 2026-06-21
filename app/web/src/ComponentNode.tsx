@@ -3,8 +3,8 @@ import type { CompNode } from "./netlist";
 import { SYMBOLS, type SchematicSymbol } from "./symbols";
 
 // A component renders as a real schematic symbol when we have one whose pin count matches
-// (resistor, LED, transistor, …). Anything else — ICs, sensors, odd pin counts — falls
-// back to a labelled chip with pins on its sides.
+// (resistor, LED, transistor, …). Anything else — microcontrollers, ICs, sensors, odd pin
+// counts — falls back to an IC body (ChipNode) with pins laid out down its sides.
 export function ComponentNode({ data, selected }: NodeProps<CompNode>) {
   const sym = SYMBOLS[data.type];
   if (sym && sym.pins.length === data.pins.length) {
@@ -59,20 +59,31 @@ function SymbolNode({
   );
 }
 
+// Generic IC / microcontroller body: a labelled package with a pin-1 notch and pins
+// evenly spaced down both sides. The box grows with pin count so leads never overlap.
 function ChipNode({ data, selected }: { data: CompNode["data"]; selected: boolean }) {
   const pins = data.pins;
   const leftCount = Math.ceil(pins.length / 2);
+  const rightCount = pins.length - leftCount;
+  const rows = Math.max(leftCount, rightCount, 1);
+
+  const TOP_INSET = 16; // clear the notch
+  const BOT_INSET = 10;
+  const PITCH = 22; // vertical gap between adjacent pins
+  const height = TOP_INSET + BOT_INSET + rows * PITCH;
+  const span = height - TOP_INSET - BOT_INSET;
 
   return (
-    <div className={`chip-node${selected ? " selected" : ""}`}>
+    <div className={`chip-node${selected ? " selected" : ""}`} style={{ height }}>
+      <span className="chip-notch" />
       <span className="chip-label">{data.label}</span>
       {data.value ? <span className="chip-value">{data.value}</span> : null}
 
       {pins.map((pin, i) => {
         const onLeft = i < leftCount;
         const sideIndex = onLeft ? i : i - leftCount;
-        const sideCount = onLeft ? leftCount : pins.length - leftCount;
-        const top = `${((sideIndex + 1) / (sideCount + 1)) * 100}%`;
+        const sideCount = onLeft ? leftCount : rightCount;
+        const top = TOP_INSET + ((sideIndex + 0.5) / sideCount) * span;
         return (
           <Handle
             key={pin}
