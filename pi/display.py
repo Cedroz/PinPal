@@ -53,6 +53,10 @@ BODY_H = len(BODY)
 LEG_COLS = [(2, 3), (5, 6), (10, 11), (13, 14)]
 LEG_LEN = 3        # base leg length in sprite pixels
 
+# Animation tempo in frame-units/sec. Was the old fixed FPS; keeping it at 12
+# preserves the original dance speed while DISPLAY_FPS only controls smoothness.
+ANIM_RATE = 12.0
+
 
 def _lerp(a, b, t):
     return tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(3))
@@ -140,23 +144,27 @@ class Display:
         from PIL import Image
         W, H = cfg.DISPLAY_WIDTH, cfg.DISPLAY_HEIGHT
         period = 1.0 / max(1, cfg.DISPLAY_FPS)
-        frame = 0
+        # Drive animation by elapsed wall-clock time (not the frame count) so the
+        # tempo is constant regardless of FPS / SPI throughput.
+        phase = 0.0
+        last = time.monotonic()
         while not self._stop.is_set():
             t0 = time.monotonic()
+            phase += (t0 - last) * ANIM_RATE
+            last = t0
             with self._lock:
                 busy = self._depth > 0
                 verb = self._verb
             img = Image.new("RGB", (W, H), BG)
             if busy:
-                self._draw_busy(img, verb, frame)
+                self._draw_busy(img, verb, phase)
             else:
-                self._draw_idle(img, frame)
+                self._draw_idle(img, phase)
             try:
                 self._disp.display(img)
             except Exception as e:
                 print(f"[display] push failed ({e}) — stopping render thread")
                 return
-            frame += 1
             time.sleep(max(0, period - (time.monotonic() - t0)))
 
     # --- drawing primitives ----------------------------------------------
@@ -170,31 +178,36 @@ class Display:
                 y = oy + ry * scale
                 draw.rectangle([x, y, x + scale - 1, y + scale - 1], fill=color)
 
-    def _draw_creature(self, draw, ox, oy, scale, frame, dance=True):
-        """Body at (ox, oy); legs tap below it with a phase ripple when dancing."""
-        self._blit_body(draw, ox, oy, scale)
-        leg_top = oy + BODY_H * scale
+    def _creature_sprite(self, scale, frame, dance=True):
+        """Render the creature (body + tapping legs) onto its own RGBA image, then
+        rotate it 90° clockwise so the wide sprite stands upright on the panel."""
+        from PIL import Image, ImageDraw
+        w = SPRITE_W * scale
+        h = (BODY_H + LEG_LEN + 2) * scale          # +2 rows of headroom for leg wobble
+        sprite = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d = ImageDraw.Draw(sprite)
+        self._blit_body(d, 0, 0, scale)
+        leg_top = BODY_H * scale
         for i, (c0, c1) in enumerate(LEG_COLS):
             wob = 0
             if dance:
                 wob = round((math.sin(frame * 0.5 + i * (math.pi / 2)) + 1) * scale)
-            x0 = ox + c0 * scale
-            x1 = ox + (c1 + 1) * scale - 1
-            draw.rectangle([x0, leg_top, x1, leg_top + LEG_LEN * scale + wob], fill=ORANGE)
+            x0 = c0 * scale
+            x1 = (c1 + 1) * scale - 1
+            d.rectangle([x0, leg_top, x1, leg_top + LEG_LEN * scale + wob], fill=ORANGE)
+        return sprite.rotate(-90, expand=True)      # negative angle == clockwise
 
     def _draw_idle(self, img, frame):
-        from PIL import ImageDraw
-        draw = ImageDraw.Draw(img)
         W, H = img.size
         scale = max(4, W // 24)
-        sprite_w = SPRITE_W * scale
-        sprite_h = (BODY_H + LEG_LEN) * scale
+        sprite = self._creature_sprite(scale, frame, dance=True)
+        sw, sh = sprite.size
         # bob + gentle sway
         dy = round(scale * 0.8 * math.sin(frame * 0.25))
         dx = round(scale * 0.5 * math.sin(frame * 0.25 + math.pi / 2))
-        ox = (W - sprite_w) // 2 + dx
-        oy = (H - sprite_h) // 2 + dy
-        self._draw_creature(draw, ox, oy, scale, frame, dance=True)
+        ox = (W - sw) // 2 + dx
+        oy = (H - sh) // 2 + dy
+        img.paste(sprite, (ox, oy), sprite)
 
     def _draw_busy(self, img, verb, frame):
         from PIL import ImageDraw
@@ -202,14 +215,14 @@ class Display:
         W, H = img.size
         # small logo creature at the left
         scale = max(2, W // 60)
-        logo_w = SPRITE_W * scale
-        logo_h = (BODY_H + LEG_LEN) * scale
+        sprite = self._creature_sprite(scale, frame, dance=False)
+        sw, sh = sprite.size
         ox = max(6, W // 20)
-        oy = (H - logo_h) // 2
-        self._draw_creature(draw, ox, oy, scale, frame, dance=False)
-        self._draw_sparkle(draw, ox + logo_w, oy + scale * 2, scale, frame)
+        oy = (H - sh) // 2
+        img.paste(sprite, (ox, oy), sprite)
+        self._draw_sparkle(draw, ox + sw, oy + sh // 2, scale, frame)
         # shimmering verb to the right of the logo
-        text_x = ox + logo_w + scale * 4
+        text_x = ox + sw + scale * 4
         self._shimmer_text(img, f"{verb}…", text_x, frame)
 
     def _draw_sparkle(self, draw, cx, cy, scale, frame):
