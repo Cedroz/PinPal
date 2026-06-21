@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addEdge,
   Background,
+  ConnectionLineType,
   ConnectionMode,
   Controls,
   MiniMap,
@@ -58,7 +59,7 @@ export default function App() {
   }, [setNodes, setEdges]);
 
   const onConnect = useCallback(
-    (c: Connection) => setEdges((eds) => addEdge(c, eds)),
+    (c: Connection) => setEdges((eds) => addEdge({ ...c, type: "step" }, eds)),
     [setEdges],
   );
 
@@ -104,6 +105,8 @@ export default function App() {
         edges={edges}
         nodeTypes={nodeTypes}
         connectionMode={ConnectionMode.Loose}
+        connectionLineType={ConnectionLineType.Step}
+        defaultEdgeOptions={{ type: "step" }}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}

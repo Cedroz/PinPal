@@ -47,19 +47,21 @@ npm install
 npm run build      # or: npm run dev  — opens the editor in a browser with the sample netlist
 ```
 
-**2. Python env + a webview backend.** pywebview needs a native webview to render. On Linux:
+**2. Python env + a webview backend.** pywebview needs a native webview to render.
 
 ```bash
 cd app
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
-# Linux backend — GTK4 + WebKit (Debian/Ubuntu):
-sudo apt install -y python3-gi gir1.2-gtk-4.0 gir1.2-webkit-6.0
-#   …or use Qt instead:  pip install "pywebview[qt]"
 ```
 
-(macOS/Windows need no extra backend — pywebview uses the OS webview.)
+On **Linux** `requirements.txt` pulls the Qt backend (qtpy + PySide6) via pip — self-contained,
+no `sudo`, and no `--system-site-packages` venv. `netlist_window.py` selects Qt automatically.
+Prefer system **GTK** instead? Recreate the venv with `--system-site-packages`, `apt install
+python3-gi gir1.2-gtk-4.0 gir1.2-webkit-6.0`, and run with `PYWEBVIEW_GUI=gtk`.
+
+**macOS/Windows** need no backend — pywebview uses the OS-native webview.
 
 ## Wire it into Claude Code
 
@@ -100,9 +102,18 @@ whole editor is iterable standalone, no Pi or MCP server needed.
 - `confirm_netlist` registers and rejects bad input before opening a window.
 - netlist → graph → netlist round-trip preserves connectivity and net names; user wire edits
   re-derive nets correctly (union-find).
+- **Live window renders and the JS↔Python bridge works** (Qt backend on a real X session):
+  the page loads, resolves `window.pywebview.api`, and `get_netlist` round-trips to Python.
 
-**Not yet verified end-to-end:** the live window render + click-to-approve, which needs a
-webview backend + display (see Setup). Test on the laptop with `npm run build` done.
+**Not auto-tested:** the human clicking *Approve* (the `submit` path is wired the same way as
+the verified `get_netlist`).
+
+### Display / environment
+
+The window must open in a **graphical session**. Run `claude` from a terminal *inside* your
+desktop session so `DISPLAY`, `XAUTHORITY`, and `DBUS_SESSION_BUS_ADDRESS` are set — the MCP
+server and the window subprocess inherit them. A bare SSH shell without those won't render.
+(If you hit `Cannot create platform OpenGL context`, force EGL: `QT_XCB_GL_INTEGRATION=xcb_egl`.)
 
 ## Contract with Person A (vision agent)
 

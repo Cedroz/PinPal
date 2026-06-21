@@ -31,31 +31,52 @@ const SAMPLE: Netlist = {
   ],
 };
 
-export const inPywebview = () => "pywebview" in window;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function ready(): Promise<void> {
-  if (window.pywebview?.api) return Promise.resolve();
-  return new Promise((resolve) => window.addEventListener("pywebviewready", () => resolve(), { once: true }));
+// pywebview injects window.pywebview.api *asynchronously* (after `pywebviewready`), so a
+// synchronous "am I in pywebview?" check at mount races and wrongly reads false. Instead
+// poll for the API for a grace period: if it shows up we're in the window; if it never
+// does, we're in a plain browser (`npm run dev`) and fall back to the sample. Resolved
+// once and cached so the wait happens a single time.
+let apiPromise: Promise<PywebviewApi | null> | undefined;
+
+function resolveApi(): Promise<PywebviewApi | null> {
+  if (!apiPromise) {
+    apiPromise = (async () => {
+      for (let waited = 0; waited < 2500; waited += 25) {
+        const api = window.pywebview?.api;
+        if (api && typeof api.get_netlist === "function") {
+          console.log("[bridge] pywebview API ready");
+          return api;
+        }
+        await sleep(25);
+      }
+      console.log("[bridge] no pywebview host — browser fallback (sample netlist)");
+      return null;
+    })();
+  }
+  return apiPromise;
 }
 
 export async function getNetlist(): Promise<Netlist> {
-  if (!inPywebview()) return structuredClone(SAMPLE);
-  await ready();
-  return window.pywebview!.api.get_netlist();
+  const api = await resolveApi();
+  return api ? api.get_netlist() : structuredClone(SAMPLE);
 }
 
 export async function submit(netlist: Netlist): Promise<void> {
-  if (!inPywebview()) {
+  const api = await resolveApi();
+  if (!api) {
     console.log("[dev] submit", JSON.stringify(netlist, null, 2));
     return;
   }
-  await window.pywebview!.api.submit(netlist);
+  await api.submit(netlist);
 }
 
 export async function cancel(): Promise<void> {
-  if (!inPywebview()) {
+  const api = await resolveApi();
+  if (!api) {
     console.log("[dev] cancel");
     return;
   }
-  await window.pywebview!.api.cancel();
+  await api.cancel();
 }

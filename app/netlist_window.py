@@ -12,12 +12,30 @@ Protocol:
 """
 
 import json
+import os
 import pathlib
 import sys
+
+# QtWebEngine defaults to hardware OpenGL. On headless / GPU-less X servers (VMs, CI,
+# SSH-forwarded displays) that path can't get a GL context, falls back to Vulkan, and
+# crashes the process with SIGSEGV. Force Chromium + Qt onto software rendering before
+# any Qt import. setdefault so a host with a working GPU can still override these.
+if sys.platform.startswith("linux"):
+    os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
+    os.environ.setdefault("QT_OPENGL", "software")
+    os.environ.setdefault("QT_QUICK_BACKEND", "software")  # render QtWebEngine's QQuickWidget
+                                                           # in software; without it the web
+                                                           # view gets no RHI and stays blank
+    os.environ.setdefault("LIBGL_ALWAYS_SOFTWARE", "1")
 
 import webview
 
 INDEX = pathlib.Path(__file__).parent / "web" / "dist" / "index.html"
+
+# On Linux pywebview tries GTK first (needs system PyGObject) before falling back to Qt.
+# We ship the Qt backend via pip, so select it directly and skip the noisy GTK attempt.
+# An explicit PYWEBVIEW_GUI override still wins. macOS/Windows use the native webview.
+_GUI = "qt" if sys.platform.startswith("linux") and not os.environ.get("PYWEBVIEW_GUI") else None
 
 
 def main() -> None:
@@ -49,8 +67,11 @@ def main() -> None:
         width=1100,
         height=760,
         min_size=(720, 520),
+        on_top=True,  # float above the editor that launched us; this is a blocking modal,
+                      # so stay on top until the user approves or cancels rather than getting
+                      # lost behind a maximized window.
     )
-    webview.start()  # blocks until the window is destroyed
+    webview.start(gui=_GUI)  # blocks until the window is destroyed
 
     payload = json.dumps(result)
     if out_path:
