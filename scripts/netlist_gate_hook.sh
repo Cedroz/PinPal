@@ -2,12 +2,21 @@
 # Claude Code SubagentStop hook: enforce the human-in-the-loop netlist gate.
 #
 # Registered at project scope in .claude/settings.json. Fires when ANY subagent
-# stops (SubagentStop has no matcher), so it scopes itself by reading the
-# transcript. It is a no-op unless the just-finished subagent called
+# stops (SubagentStop has no matcher), so it scopes itself by `agent_type`. It is
+# a no-op unless the just-finished circuit-netlist-extractor subagent called
 # mcp__pin-pal__capture_circuit. If it did, the subagent must also hold an
-# *approved* mcp__pin-pal-ui__confirm_netlist tool_result — otherwise the stop is
-# BLOCKED and the subagent is told to run the UI gate. This guarantees no parsed
-# netlist reaches the parent context without the user reviewing/approving it.
+# *approved* (or user-*cancelled*) mcp__pin-pal-ui__confirm_netlist tool_result —
+# otherwise the stop is BLOCKED and the subagent is told to run the UI gate. This
+# guarantees no parsed netlist reaches the parent context without the user
+# reviewing/approving it.
+#
+# Key detail: SubagentStop input carries TWO transcript paths. `transcript_path`
+# is the PARENT session (which does NOT contain the subagent's own tool calls),
+# while `agent_transcript_path` is the subagent's own transcript. We must read the
+# latter. (Earlier versions scoped by `isSidechain==true` over `transcript_path`;
+# that flag is no longer set in current Claude Code transcripts, so the gate
+# silently became a no-op. `agent_type` + `agent_transcript_path` are the
+# supported, version-stable signals.)
 #
 # Fails open (allows the stop) on any infra error so a transcript hiccup can't
 # brick every subagent, including unrelated ones (Explore, etc.).
@@ -19,6 +28,8 @@ INPUT="$(cat)"
 python3 - "$INPUT" <<'PY'
 import json, sys
 
+EXTRACTOR = "circuit-netlist-extractor"
+
 try:
     inp = json.loads(sys.argv[1])
 except Exception:
@@ -28,7 +39,13 @@ except Exception:
 if inp.get("stop_hook_active"):
     sys.exit(0)
 
-path = inp.get("transcript_path")
+# Only the netlist extractor is gated; any other subagent is none of our business.
+if inp.get("agent_type") != EXTRACTOR:
+    sys.exit(0)
+
+# The subagent's OWN transcript holds its capture_circuit / confirm_netlist calls.
+# The parent `transcript_path` does not, so we must use agent_transcript_path.
+path = inp.get("agent_transcript_path")
 if not path:
     sys.exit(0)
 
@@ -38,21 +55,6 @@ try:
 except Exception:
     sys.exit(0)  # unreadable transcript -> fail open
 
-# Keep only real message lines (assistant/user with a message body).
-msgs = [
-    e for e in lines
-    if e.get("type") in ("assistant", "user") and isinstance(e.get("message"), dict)
-]
-
-# Scope to THIS subagent: the maximal trailing contiguous run of isSidechain==true.
-sub = []
-for e in reversed(msgs):
-    if e.get("isSidechain") is True:
-        sub.append(e)
-    else:
-        break
-sub.reverse()
-
 
 def content_items(e):
     c = e.get("message", {}).get("content")
@@ -61,7 +63,7 @@ def content_items(e):
 
 captured = False
 confirm_ids = set()
-for e in sub:
+for e in lines:
     for item in content_items(e):
         if item.get("type") == "tool_use":
             name = item.get("name")
@@ -83,8 +85,12 @@ def result_text(item):
     return ""
 
 
-approved = False
-for e in sub:
+# The user got to review iff confirm_netlist returned a terminal decision:
+# "approved" (trusted netlist) or "cancelled" (they saw it and declined). An
+# "error" result means the UI never opened (malformed netlist) -> still block so
+# the agent fixes it and re-gates.
+reviewed = False
+for e in lines:
     for item in content_items(e):
         if item.get("type") != "tool_result":
             continue
@@ -96,10 +102,10 @@ for e in sub:
             payload = json.loads(result_text(item))
         except Exception:
             continue
-        if isinstance(payload, dict) and payload.get("status") == "approved":
-            approved = True
+        if isinstance(payload, dict) and payload.get("status") in ("approved", "cancelled"):
+            reviewed = True
 
-if approved:
+if reviewed:
     sys.exit(0)
 
 # Captured a circuit but no approved confirmation -> block the stop.

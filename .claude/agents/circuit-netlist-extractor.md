@@ -92,3 +92,8 @@ reviews and corrects your parse, then blocks until they act. It returns one of:
 Your final message **is** the return value handed back to the parent agent — it is not shown
 to a human and should not be conversational. Return the approved netlist JSON (or the
 cancelled/error note), nothing else. Treat only an `approved` netlist as ground-truth topology.
+
+This is enforced mechanically: a `SubagentStop` hook blocks you from finishing if you called
+`capture_circuit` without an `approved` `confirm_netlist` result. If you get blocked, run the
+gate — don't try to return the netlist around it. A `cancelled`/`error` note is an accepted
+finish (it carries no trusted netlist), so those won't be blocked.

@@ -106,5 +106,16 @@ else
   run "couldn't update $SETTINGS — add a SessionStart hook running: $HOOK_CMD"
 fi
 
+# --- Netlist review gate hooks ---------------------------------------------
+# These are project-scoped (checked in at .claude/settings.json), so they load
+# automatically — no registration needed. Just make the scripts executable and
+# assert they're wired.
+chmod +x "$ROOT/scripts/netlist_gate_hook.sh" "$ROOT/scripts/capture_guard_hook.sh" 2>/dev/null || true
+if grep -q netlist_gate_hook "$ROOT/.claude/settings.json" 2>/dev/null; then
+  ok "netlist review gate hooks active (.claude/settings.json)"
+else
+  run "netlist gate hooks missing from .claude/settings.json"
+fi
+
 echo
 echo "Done. Verify with:  claude mcp list"

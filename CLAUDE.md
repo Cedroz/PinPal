@@ -38,6 +38,12 @@ Treat that approved netlist as trusted topology; the raw image never enters this
 still "vision is a hypothesis" — the human gate + the netlist is the trust boundary, and live
 probes (`scan_i2c`/`read_gpio`) remain the electrical oracle for actual state.
 
+This gate is now hard-enforced by hooks, not just convention: calling **either** capture tool
+(`capture_circuit` or `capture_image`) directly from this session is **denied** — all board
+photography must go through the subagent — and the subagent is **blocked** from returning a
+netlist unless the user approved it in the UI. Don't describe wiring from a prior photo or
+memory either; route any wiring question through the extractor.
+
 ## Debug workflow (Act 1)
 
 When a sensor/component isn't working:
