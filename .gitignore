@@ -5,5 +5,9 @@ reference/
 runs/
 venv/
 .venv/
+# JS / web frontend
 node_modules/
 dist/
+*.tsbuildinfo
+app/web/vite.config.js
+app/web/vite.config.d.ts

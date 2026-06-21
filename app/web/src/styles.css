@@ -1,0 +1,138 @@
+:root {
+  font-family: system-ui, -apple-system, sans-serif;
+  --bg: #0b0c0f;
+  --panel: #1b1e27;
+  --border: #2c303b;
+  --text: #e6e8ee;
+  --muted: #9aa1b1;
+  --accent: #4f8cff;
+  --good: #2ea043;
+  --wire: #c6ccd8;
+}
+
+* { box-sizing: border-box; }
+html, body, #root, .app { height: 100%; margin: 0; }
+.app { background: var(--bg); color: var(--text); }
+
+.react-flow__background { background: var(--bg); }
+
+/* ---- schematic symbol node ---- */
+.schematic-node {
+  position: relative;
+  color: var(--wire);
+}
+.schematic-node.selected { color: var(--accent); }
+
+.sym {
+  display: block;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.sym path,
+.sym circle,
+.sym line { fill: none; stroke: currentColor; stroke-width: 1.7; }
+.sym .fill { fill: currentColor; stroke: currentColor; }
+
+.sym-label {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.sym-label .lbl { font-size: 13px; font-weight: 600; color: var(--text); }
+.sym-label .val { font-size: 11px; color: var(--muted); }
+.schematic-node.selected .sym-label .lbl { color: var(--accent); }
+
+/* ---- generic chip fallback (ICs, sensors, odd pin counts) ---- */
+.chip-node {
+  min-width: 96px;
+  padding: 12px 16px;
+  background: transparent;
+  border: 1.5px solid var(--wire);
+  border-radius: 4px;
+  color: var(--text);
+  text-align: center;
+}
+.chip-node.selected { border-color: var(--accent); }
+.chip-label { display: block; font-weight: 600; font-size: 14px; }
+.chip-value { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+.pin-label {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.pin-label.left { right: 14px; }
+.pin-label.right { left: 14px; }
+
+/* ---- wires + terminals ---- */
+.react-flow__edge-path { stroke: var(--wire); stroke-width: 1.6; }
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path { stroke: var(--accent); }
+.react-flow__connection-path { stroke: var(--accent); stroke-width: 1.6; }
+
+.react-flow__handle {
+  width: 7px;
+  height: 7px;
+  min-width: 0;
+  min-height: 0;
+  background: var(--wire);
+  border: none;
+  border-radius: 50%;
+}
+.react-flow__handle:hover { background: var(--accent); width: 11px; height: 11px; }
+
+/* ---- panels ---- */
+.toolbar, .add-panel, .inspector, .actions {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--text);
+}
+.toolbar { display: flex; flex-direction: column; gap: 4px; }
+.toolbar .hint { font-size: 11px; color: var(--muted); max-width: 240px; }
+
+.panel-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.add-panel { display: flex; flex-direction: column; gap: 8px; }
+.add-buttons { display: flex; flex-wrap: wrap; gap: 6px; max-width: 210px; }
+.add-buttons button {
+  background: #262a35;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.add-buttons button:hover { border-color: var(--accent); }
+
+.inspector { display: flex; flex-direction: column; gap: 8px; width: 200px; }
+.inspector label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted); }
+.inspector input, .inspector select {
+  background: #262a35;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 7px;
+  font-size: 13px;
+}
+
+.actions { display: flex; gap: 10px; }
+.actions button {
+  border: none;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.actions .cancel { background: #2c303b; color: var(--text); }
+.actions .approve { background: var(--good); color: #fff; }
+.actions .approve:disabled { opacity: 0.5; cursor: default; }

@@ -1,0 +1,9 @@
+# pin-pal-ui — laptop-side netlist confirmation UI + MCP server
+mcp[cli]>=1.2.0
+pywebview>=5.0
+
+# Webview backend. macOS/Windows use the OS-native webview (nothing extra needed).
+# Linux has no bundled webview, so ship the Qt backend via pip — self-contained, no
+# system GTK and no --system-site-packages venv required.
+qtpy; sys_platform == "linux"
+PySide6; sys_platform == "linux"
