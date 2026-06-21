@@ -4,11 +4,18 @@
 // fully usable standalone.
 
 import type { Netlist } from "./netlist";
+import type { ConversionResult, Overrides, SimResult } from "./spice";
 
 interface PywebviewApi {
   get_netlist: () => Promise<Netlist>;
   submit: (netlist: Netlist) => Promise<void>;
   cancel: () => Promise<void>;
+  export_spice: (netlist: Netlist) => Promise<ConversionResult>;
+  simulate: (
+    netlist: Netlist,
+    overrides: Overrides | null,
+    plot_nodes: string[] | null,
+  ) => Promise<SimResult>;
 }
 
 declare global {
@@ -79,4 +86,46 @@ export async function cancel(): Promise<void> {
     return;
   }
   await api.cancel();
+}
+
+export async function exportSpice(netlist: Netlist): Promise<ConversionResult> {
+  const api = await resolveApi();
+  return api ? api.export_spice(netlist) : devConversion();
+}
+
+export async function simulate(
+  netlist: Netlist,
+  overrides: Overrides | null,
+  plotNodes: string[] | null,
+): Promise<SimResult> {
+  const api = await resolveApi();
+  return api ? api.simulate(netlist, overrides, plotNodes) : devSim(plotNodes);
+}
+
+// ---- browser dev fallbacks (npm run dev, no Python/ngspice) ------------------
+
+function devConversion(): ConversionResult {
+  return {
+    cir:
+      "* Pin Pal netlist -> ngspice (dev sample)\n\n" +
+      "DLED1 ANODE 0 DLED\nRR1 VCC ANODE 220\nVPWR VCC 0 DC 5\n\n" +
+      ".model DLED D(Is=1e-14 N=2)\n.options rshunt=1e12\n.tran 1.000e-05 5.000e-03\n.end\n",
+    nodes: ["ANODE", "VCC"],
+    replacements: [],
+    warnings: ["dev fallback — install Python host + ngspice for a real deck"],
+  };
+}
+
+function devSim(plotNodes: string[] | null): SimResult {
+  const conv = devConversion();
+  const N = 400;
+  const time = Array.from({ length: N }, (_, i) => (i / (N - 1)) * 5e-3);
+  const all: Record<string, number[]> = {
+    VCC: time.map(() => 5),
+    ANODE: time.map((t) => 1.8 + 0.2 * Math.sin(2 * Math.PI * 1000 * t)),
+  };
+  const signals = plotNodes
+    ? Object.fromEntries(Object.entries(all).filter(([k]) => plotNodes.includes(k)))
+    : all;
+  return { status: "ok", time, signals, nodes: conv.nodes, replacements: [], warnings: conv.warnings, cir: conv.cir };
 }

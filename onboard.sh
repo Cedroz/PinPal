@@ -40,15 +40,31 @@ else
   "$APP/.venv/bin/pip" install -r "$APP/requirements.txt"
 fi
 
-# --- 3. pin-pal-ui (laptop MCP) --------------------------------------------
+# --- 3. ngspice (SPICE simulator) ------------------------------------------
+# Needed by the netlist editor's Simulate button. System binary, not a pip package,
+# so it lives here rather than in requirements.txt. Export .cir works without it.
+echo "[3/6] ngspice (SPICE simulator)"
+if command -v ngspice >/dev/null 2>&1; then
+  ok "ngspice already installed"
+elif command -v apt-get >/dev/null 2>&1; then
+  run "installing ngspice via apt…"
+  sudo apt-get install -y ngspice && ok "ngspice installed" || run "install ngspice manually"
+elif command -v brew >/dev/null 2>&1; then
+  run "installing ngspice via brew…"
+  brew install ngspice && ok "ngspice installed" || run "install ngspice manually"
+else
+  run "install ngspice manually — Simulate needs it (Export .cir works without it)"
+fi
+
+# --- 4. pin-pal-ui (laptop MCP) --------------------------------------------
 # .mcp.json registers it at project scope; just clear any stray local duplicate.
-echo "[3/5] pin-pal-ui MCP"
+echo "[4/6] pin-pal-ui MCP"
 claude mcp remove pin-pal-ui -s local >/dev/null 2>&1 || true
 ok "registered via .mcp.json — approve it when you launch claude in this repo"
 
-# --- 4. pin-pal (Pi probe server) ------------------------------------------
+# --- 5. pin-pal (Pi probe server) ------------------------------------------
 # Always over the SSH tunnel — never a direct LAN/HTTP add.
-echo "[4/5] pin-pal MCP (the Pi probe server, over SSH tunnel)"
+echo "[5/6] pin-pal MCP (the Pi probe server, over SSH tunnel)"
 if claude mcp list 2>/dev/null | grep -q '^pin-pal:'; then
   ok "already registered — skipping"
 else
@@ -63,11 +79,11 @@ else
   fi
 fi
 
-# --- 5. SessionStart hook --------------------------------------------------
+# --- 6. SessionStart hook --------------------------------------------------
 # Registers scripts/session_start_hook.sh as a Claude Code SessionStart hook in
 # the user's global settings, merging into any existing hooks. Idempotent: it
 # strips any prior Pin Pal SessionStart entry first, so re-runs never duplicate.
-echo "[5/5] SessionStart hook (auto-reconnect tunnel each session)"
+echo "[6/6] SessionStart hook (auto-reconnect tunnel each session)"
 SETTINGS="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
 HOOK_CMD="bash $ROOT/scripts/session_start_hook.sh"
 if PINPAL_SETTINGS="$SETTINGS" PINPAL_HOOK_CMD="$HOOK_CMD" python3 - <<'PY'

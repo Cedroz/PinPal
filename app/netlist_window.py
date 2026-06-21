@@ -16,6 +16,9 @@ import os
 import pathlib
 import sys
 
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+import spice  # noqa: E402  (flat app/ dir — load sibling module)
+
 # QtWebEngine defaults to hardware OpenGL. On headless / GPU-less X servers (VMs, CI,
 # SSH-forwarded displays) that path can't get a GL context, falls back to Vulkan, and
 # crashes the process with SIGSEGV. Force Chromium + Qt onto software rendering before
@@ -59,6 +62,13 @@ def main() -> None:
 
         def cancel(self):
             window.destroy()
+
+        def export_spice(self, netlist):
+            # Pure conversion — no ngspice needed. Returns {cir, nodes, replacements, ...}.
+            return spice.to_spice(netlist)
+
+        def simulate(self, netlist, overrides=None, plot_nodes=None):
+            return spice.simulate(netlist, overrides=overrides, plot_nodes=plot_nodes)
 
     window = webview.create_window(
         "Pin Pal — Confirm Netlist",

@@ -18,7 +18,7 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import { ComponentNode } from "./ComponentNode";
-import { cancel, getNetlist, submit } from "./bridge";
+import { cancel, exportSpice, getNetlist, submit } from "./bridge";
 import { layoutGraph } from "./layout";
 import {
   graphToNetlist,
@@ -27,6 +27,8 @@ import {
   type CompNode,
   type Netlist,
 } from "./netlist";
+import { downloadCir, type ConversionResult } from "./spice";
+import { WaveformPanel } from "./WaveformPanel";
 import "./styles.css";
 
 // Default pin sets for "Add component" so new parts get sensible handles.
@@ -50,6 +52,7 @@ export default function App() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [sim, setSim] = useState<{ netlist: Netlist; conversion: ConversionResult } | null>(null);
   const original = useRef<Netlist>({ components: [], nets: [] });
   const { fitView } = useReactFlow();
   const nodesInitialized = useNodesInitialized();
@@ -113,6 +116,18 @@ export default function App() {
 
   const onApprove = useCallback(() => {
     submit(graphToNetlist(nodes, edges, original.current));
+  }, [nodes, edges]);
+
+  const onExport = useCallback(async () => {
+    const nl = graphToNetlist(nodes, edges, original.current);
+    const conv = await exportSpice(nl);
+    downloadCir(conv.cir, "netlist.cir");
+  }, [nodes, edges]);
+
+  const onSimulate = useCallback(async () => {
+    const nl = graphToNetlist(nodes, edges, original.current);
+    const conv = await exportSpice(nl);
+    setSim({ netlist: nl, conversion: conv });
   }, [nodes, edges]);
 
   return (
@@ -191,10 +206,26 @@ export default function App() {
           <button className="cancel" onClick={() => cancel()}>
             Cancel
           </button>
+          <button className="spice" onClick={onExport} disabled={!loaded}>
+            Export .cir
+          </button>
+          <button className="spice" onClick={onSimulate} disabled={!loaded}>
+            Simulate
+          </button>
           <button className="approve" onClick={onApprove} disabled={!loaded}>
             Approve netlist
           </button>
         </Panel>
+
+        {sim ? (
+          <Panel position="bottom-left">
+            <WaveformPanel
+              netlist={sim.netlist}
+              conversion={sim.conversion}
+              onClose={() => setSim(null)}
+            />
+          </Panel>
+        ) : null}
       </ReactFlow>
     </div>
   );
