@@ -5,3 +5,5 @@ reference/
 runs/
 venv/
 .venv/
+node_modules/
+dist/

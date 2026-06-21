@@ -230,12 +230,28 @@ Notes:
 ---
 
 ## Laptop — connect Claude Code to Pin Pal
+
+If your laptop and the Pi are on the **same LAN** and direct HTTP between them is reliable:
 ```bash
 claude mcp add --transport http pin-pal http://<PI_LAN_IP>:8000/mcp
 ```
-Verify with `/mcp` — the six tools should list. Then *"my BME280 isn't reading"* makes Claude
-call `scan_i2c` first; *"make the LED blink when the sensor reads over 25°C"* drives the build loop
-(`flash_firmware` for an MCU target, `deploy_run` for a Pi-class target).
+
+In practice (e.g. hackathon venue WiFi), laptops and the Pi often end up on **different
+networks**, and direct HTTP between them can be unreliable or fully blocked even when SSH
+isn't. For that case use the team scripts instead — they tunnel MCP traffic over SSH, which
+has been the reliable path:
+
+```bash
+./scripts/pinpal_connect.sh      # one-time per teammate, safe to re-run
+```
+First run generates you a dedicated SSH key and prints it for the Pi's owner to authorize via
+`./scripts/pinpal_authorize.sh "<your pubkey line>"`. After that it opens a self-healing SSH
+tunnel (auto-reconnects on drop) and runs `claude mcp add` for you, pointed at the tunnel.
+
+Verify with `/mcp` or `claude mcp list` — the six tools should list as Connected. Then
+*"my BME280 isn't reading"* makes Claude call `scan_i2c` first; *"make the LED blink when the
+sensor reads over 25°C"* drives the build loop (`flash_firmware` for an MCU target, `deploy_run`
+for a Pi-class target).
 
 ---
 

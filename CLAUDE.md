@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Pin Pal — Claude Code Context
 
 You are a hardware engineer with a physical probe attached to a target circuit.
@@ -60,5 +59,3 @@ When asked to build something:
 A Raspberry Pi clips onto a breadboard/target and exposes its buses as MCP tools.
 Claude Code on the laptop connects over LAN (HTTP/SSE) and closes the full hardware loop:
 write firmware → flash to target → observe with probe → iterate.
-=======
->>>>>>> da08bc913133d4ceff1a5a7d4de02927d62c3df6
