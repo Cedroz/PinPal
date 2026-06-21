@@ -42,14 +42,22 @@ else
   ok "hostname already 'pinpal' — pinpal.local"
 fi
 
-# --- 3. enable I2C ---------------------------------------------------------
-echo "[3/5] I2C interface"
+# --- 3. enable I2C + SPI ---------------------------------------------------
+echo "[3/5] I2C + SPI interfaces"
 if [ "$(sudo raspi-config nonint get_i2c)" != "0" ]; then
   run "enabling I2C via raspi-config…"
   sudo raspi-config nonint do_i2c 0
   ok "I2C enabled"
 else
   ok "I2C already enabled"
+fi
+# SPI drives the ST7789 status display. /dev/spidev0.0 only appears after a reboot.
+if [ "$(sudo raspi-config nonint get_spi)" != "0" ]; then
+  run "enabling SPI via raspi-config…"
+  sudo raspi-config nonint do_spi 0
+  ok "SPI enabled — REBOOT required before /dev/spidev0.0 exists"
+else
+  ok "SPI already enabled"
 fi
 
 # --- 4. python venv + deps -------------------------------------------------

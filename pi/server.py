@@ -10,6 +10,7 @@ Connect from laptop:
 """
 
 import base64
+import functools
 import os
 import subprocess
 import tempfile
@@ -18,7 +19,31 @@ import time
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ImageContent
 
+from display import Display
+
 mcp = FastMCP("pin-pal", host="0.0.0.0", port=8000)
+
+display = Display()
+display.start()
+
+# tool name -> verb shown on the display while it runs
+VERBS = {
+    "capture_image": "Capturing", "capture_circuit": "Capturing",
+    "scan_i2c": "Scanning", "read_gpio": "Probing", "read_serial": "Listening",
+    "flash_firmware": "Flashing", "deploy_run": "Deploying",
+}
+
+
+def shows_busy(fn):
+    """Drive the display to the shimmering busy state for the duration of a tool call."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        display.set_busy(VERBS.get(fn.__name__, "Working"))
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            display.set_idle()
+    return wrapper
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +132,7 @@ def read_serial(
 
 
 @mcp.tool()
+@shows_busy
 def capture_image(filename: str | None = None) -> list[ImageContent]:
     """
     Capture a still of the breadboard from the Pi Camera.
@@ -146,6 +172,7 @@ def capture_image(filename: str | None = None) -> list[ImageContent]:
 
 
 @mcp.tool()
+@shows_busy
 def capture_circuit(filename: str | None = None) -> list[ImageContent]:
     """
     Capture a clean, settled photo of the breadboard for NETLIST EXTRACTION.
@@ -348,4 +375,7 @@ def deploy_run(
 
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http")
+    try:
+        mcp.run(transport="streamable-http")
+    finally:
+        display.stop()
