@@ -195,7 +195,10 @@ class Display:
             x0 = c0 * scale
             x1 = (c1 + 1) * scale - 1
             d.rectangle([x0, leg_top, x1, leg_top + LEG_LEN * scale + wob], fill=ORANGE)
-        return sprite.rotate(-90, expand=True)      # negative angle == clockwise
+        # Orientation knob — adjust the angle if the creature lands wrong:
+        #   -90 = quarter-turn clockwise   90 = quarter-turn counter-clockwise
+        #   180 = upside-down               0 = as authored (wide)
+        return sprite.rotate(180, expand=True)
 
     def _draw_idle(self, img, frame):
         W, H = img.size
