@@ -9,7 +9,9 @@ import {
   Panel,
   ReactFlow,
   useEdgesState,
+  useNodesInitialized,
   useNodesState,
+  useReactFlow,
   type Connection,
   type Edge,
 } from "@xyflow/react";
@@ -17,9 +19,11 @@ import "@xyflow/react/dist/style.css";
 
 import { ComponentNode } from "./ComponentNode";
 import { cancel, getNetlist, submit } from "./bridge";
+import { layoutGraph } from "./layout";
 import {
   graphToNetlist,
   netlistToGraph,
+  pinnedIds,
   type CompNode,
   type Netlist,
 } from "./netlist";
@@ -47,6 +51,9 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const original = useRef<Netlist>({ components: [], nets: [] });
+  const { fitView } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
+  const didInitialLayout = useRef(false);
 
   useEffect(() => {
     getNetlist().then((nl) => {
@@ -57,6 +64,21 @@ export default function App() {
       setLoaded(true);
     });
   }, [setNodes, setEdges]);
+
+  // Auto-arrange once, after React Flow has measured node sizes. The ref latch keeps
+  // this to a single run so later edits (e.g. adding a part) don't reshuffle the graph;
+  // the Tidy button is the explicit re-layout path.
+  useEffect(() => {
+    if (!loaded || !nodesInitialized || didInitialLayout.current) return;
+    didInitialLayout.current = true;
+    setNodes((ns) => layoutGraph(ns, edges, { pinned: pinnedIds(original.current) }));
+    requestAnimationFrame(() => fitView());
+  }, [loaded, nodesInitialized, edges, setNodes, fitView]);
+
+  const onTidy = useCallback(() => {
+    setNodes((ns) => layoutGraph(ns, edges));
+    requestAnimationFrame(() => fitView());
+  }, [edges, setNodes, fitView]);
 
   const onConnect = useCallback(
     (c: Connection) => setEdges((eds) => addEdge({ ...c, type: "step" }, eds)),
@@ -171,6 +193,9 @@ export default function App() {
         ) : null}
 
         <Panel position="bottom-center" className="actions">
+          <button className="tidy" onClick={onTidy} title="Auto-arrange the layout">
+            Tidy
+          </button>
           <button className="cancel" onClick={() => cancel()}>
             Cancel
           </button>
