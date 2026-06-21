@@ -4,7 +4,7 @@
 # auto-activated on every login, so you can run server.py by hand without
 # reactivating anything.
 #
-#   1. System packages (camera, I2C, flash toolchain, mDNS)
+#   1. System packages (camera, I2C, mDNS)
 #   2. mDNS hostname  → advertises pinpal.local
 #   3. Enable I2C
 #   4. Python venv (--system-site-packages, so picamera2 is visible) + deps
@@ -23,10 +23,10 @@ run() { printf '  \033[33m→\033[0m %s\n' "$1"; }
 
 # --- 1. system packages ----------------------------------------------------
 echo "[1/5] System packages"
-run "apt-get install (camera, I2C, flash toolchain, mDNS)…"
+run "apt-get install (camera, I2C, mDNS)…"
 sudo apt-get update -qq
 sudo apt-get install -y \
-  python3-picamera2 arduino-cli i2c-tools \
+  python3-picamera2 i2c-tools \
   python3-venv \
   avahi-daemon avahi-utils libnss-mdns
 ok "system packages present"
