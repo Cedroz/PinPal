@@ -144,6 +144,79 @@ def capture_image(filename: str | None = None) -> list[ImageContent]:
     return [ImageContent(type="image", data=b64, mimeType="image/jpeg")]
 
 
+@mcp.tool()
+def capture_circuit(filename: str | None = None) -> list[ImageContent]:
+    """
+    Capture a clean, settled photo of the breadboard for NETLIST EXTRACTION.
+    Unlike capture_image (a quick hypothesis snapshot), this waits for the scene to stop
+    moving — it grabs frames until several consecutive frames are nearly identical, so it
+    returns a sharp, hands-out-of-frame keyframe suitable for parsing wiring into a netlist.
+    Falls back to the latest frame after ~3s so it never hangs.
+    Returns viewable image content. This is the image the circuit-netlist-extractor reasons over.
+    """
+    import numpy as np
+
+    SETTLE_FRAMES = 3        # consecutive stable frames required
+    DIFF_THRESHOLD = 4.0     # mean abs per-pixel difference (0-255) considered "still"
+    TIMEOUT_S = 3.0
+    POLL_S = 0.1
+
+    def _settle(grab) -> "np.ndarray":
+        """grab() -> BGR/RGB frame as ndarray. Returns the first settled frame (or last on timeout)."""
+        start = time.time()
+        prev = grab()
+        stable = 0
+        while time.time() - start < TIMEOUT_S:
+            time.sleep(POLL_S)
+            cur = grab()
+            diff = float(np.mean(np.abs(cur.astype("int16") - prev.astype("int16"))))
+            prev = cur
+            stable = stable + 1 if diff < DIFF_THRESHOLD else 0
+            if stable >= SETTLE_FRAMES:
+                break
+        return prev
+
+    try:
+        from picamera2 import Picamera2
+        cam = Picamera2()
+        cam.configure(cam.create_still_configuration())
+        cam.start()
+        time.sleep(0.5)
+        frame = _settle(cam.capture_array)
+        cam.stop()
+        cam.close()
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+            tmp = f.name
+        # picamera2 capture_array is RGB; cv2 writes BGR — convert so colors are correct.
+        import cv2
+        cv2.imwrite(tmp, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+    except ImportError:
+        # Fallback to OpenCV for testing on non-Pi hardware
+        import cv2
+        cap = cv2.VideoCapture(0)
+
+        def _grab():
+            ret, f = cap.read()
+            if not ret:
+                raise RuntimeError("no frame")
+            return f
+
+        try:
+            frame = _settle(_grab)
+        except RuntimeError:
+            cap.release()
+            return [ImageContent(type="image", data="", mimeType="image/jpeg")]
+        cap.release()
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+            tmp = f.name
+        cv2.imwrite(tmp, frame)
+
+    with open(tmp, "rb") as f:
+        b64 = base64.standard_b64encode(f.read()).decode()
+    os.remove(tmp)
+    return [ImageContent(type="image", data=b64, mimeType="image/jpeg")]
+
+
 # ---------------------------------------------------------------------------
 # WRITE TOOLS (reach)
 # ---------------------------------------------------------------------------

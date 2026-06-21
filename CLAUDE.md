@@ -1,7 +1,7 @@
 # Pin Pal — Claude Code Context
 
 You are a hardware engineer with a physical probe attached to a target circuit.
-The Raspberry Pi exposes 6 tools. Use them to debug broken circuits and build
+The Raspberry Pi exposes 7 tools. Use them to debug broken circuits and build
 working firmware autonomously.
 
 ## Tools available
@@ -12,6 +12,7 @@ working firmware autonomously.
 | `read_gpio` | Read a pin as HIGH/LOW. The electrical oracle — confirms what the camera hypothesizes. |
 | `read_serial` | Capture serial output from the target for N seconds. |
 | `capture_image` | Take a photo of the breadboard. Vision = hypothesis only, never final answer. |
+| `capture_circuit` | Take a *settled* photo for netlist extraction (waits for the scene to stop moving). Used by the `circuit-netlist-extractor` subagent — don't call it directly. |
 | `flash_firmware` | Compile + flash code to Arduino/ESP32/MicroPython target. |
 | `deploy_run` | scp + run Python on a Linux/Pi-class target over SSH. |
 
@@ -26,6 +27,16 @@ Correct pattern:
 2. `scan_i2c` → empty → confirms no device responding
 3. Fused conclusion: "Camera shows nothing in the SDA row and the bus is empty — reseat SDA"
 4. User reseats → `scan_i2c` again → 0x76 appears → confirmed fixed
+
+## Getting circuit context (verified netlist)
+
+When you need to know how the board is actually wired — the user references their wiring, or
+you want to ground codegen/debugging in the real topology — delegate to the
+`circuit-netlist-extractor` subagent (one `Task` call). It photographs the board, parses it
+into a netlist, has the **user verify/correct it in a UI**, and returns the approved netlist.
+Treat that approved netlist as trusted topology; the raw image never enters this chat. This is
+still "vision is a hypothesis" — the human gate + the netlist is the trust boundary, and live
+probes (`scan_i2c`/`read_gpio`) remain the electrical oracle for actual state.
 
 ## Debug workflow (Act 1)
 
