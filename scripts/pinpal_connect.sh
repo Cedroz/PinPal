@@ -13,12 +13,16 @@
 # Safe to re-run any time (e.g. after sleep/reconnect) — it cleans up its
 # previous tunnel first.
 #
-# Override defaults if needed (e.g. if mDNS isn't available, pass the Pi's IP):
-#   PINPAL_HOST=10.43.235.204 PINPAL_USER=pinpal ./scripts/pinpal_connect.sh
+# Connects over the direct LAN IP first, then falls back to the stable Tailscale
+# name if the LAN path is unreachable (e.g. you're on a different network).
+#
+# Override defaults if needed:
+#   PINPAL_HOST=10.43.235.204 PINPAL_TS_HOST=pinpal PINPAL_USER=pinpal ./scripts/pinpal_connect.sh
 
 set -euo pipefail
 
-PI_HOST="${PINPAL_HOST:-pinpal.local}"
+PI_HOST_PRIMARY="${PINPAL_HOST:-10.43.235.204}"   # direct/LAN path — tried first
+PI_HOST_FALLBACK="${PINPAL_TS_HOST:-pinpal}"      # Tailscale MagicDNS name — stable fallback
 PI_USER="${PINPAL_USER:-pinpal}"
 PI_REMOTE_PORT="${PINPAL_REMOTE_PORT:-8000}"
 KEY="$HOME/.ssh/pinpal_ed25519"
@@ -37,38 +41,43 @@ if [ ! -f "$KEY" ]; then
 fi
 PUBKEY="$(cat "$KEY.pub")"
 
-# 1b. If we're using the default mDNS name, make sure it resolves before we try
-#     SSH — otherwise the failure surfaces as a confusing SSH timeout instead of
-#     a clear "can't find the Pi" message. (Skipped when an IP/host was passed.)
-if [ "$PI_HOST" = "pinpal.local" ]; then
-  if ! getent hosts "$PI_HOST" >/dev/null 2>&1 && ! ping -c1 -W2 "$PI_HOST" >/dev/null 2>&1; then
-    echo
-    echo "Couldn't resolve '$PI_HOST' over mDNS. Either the Pi is off / not on this"
-    echo "network, or your machine can't do mDNS lookups. Fixes:"
-    echo "  - Linux: sudo apt-get install -y avahi-daemon libnss-mdns"
-    echo "  - macOS: built in — check the Pi is powered on and on the same LAN"
-    echo "  - or skip mDNS entirely: PINPAL_HOST=<pi-ip> ./scripts/pinpal_connect.sh"
-    echo
-    exit 1
+# 2. Find a reachable host that already trusts our key. Try the direct LAN IP
+#    first, then fall back to the stable Tailscale name. (The self-healing loop
+#    below re-checks this on every reconnect; this is just the initial probe so
+#    we can give a clear error before backgrounding anything.)
+SSH_PROBE=(-o BatchMode=yes -o ConnectTimeout=4 -o StrictHostKeyChecking=accept-new \
+           -o IdentitiesOnly=yes -i "$KEY")
+PI_HOST=""
+for h in "$PI_HOST_PRIMARY" "$PI_HOST_FALLBACK"; do
+  if ssh "${SSH_PROBE[@]}" "$PI_USER@$h" 'echo ok' >/dev/null 2>&1; then
+    PI_HOST="$h"
+    [ "$h" = "$PI_HOST_FALLBACK" ] && echo "LAN IP $PI_HOST_PRIMARY unreachable — using Tailscale ($PI_HOST_FALLBACK)."
+    break
   fi
-fi
+done
 
-# 2. Is it trusted yet?
-if ! ssh -o BatchMode=yes -o ConnectTimeout=6 -o IdentitiesOnly=yes -i "$KEY" \
-       "$PI_USER@$PI_HOST" 'echo ok' >/dev/null 2>&1; then
+if [ -z "$PI_HOST" ]; then
   echo
-  echo "Your key isn't authorized on the Pi yet. Send this exact line to whoever"
-  echo "manages the Pi and ask them to run scripts/pinpal_authorize.sh with it:"
+  echo "Couldn't reach the Pi with your key over either path:"
+  echo "  - LAN IP:    $PI_HOST_PRIMARY"
+  echo "  - Tailscale: $PI_HOST_FALLBACK"
+  echo
+  echo "Either the Pi is offline, or your key isn't authorized yet. If it's the key,"
+  echo "send this exact line to whoever manages the Pi (they run scripts/pinpal_authorize.sh):"
   echo
   echo "  $PUBKEY"
   echo
-  echo "Once they confirm it's added, re-run this script."
+  echo "Then re-run this script."
   exit 1
 fi
 
-# 3. Clear out any tunnel we previously started.
+# 3. Clear out any tunnel we previously started — both the reconnect loop and
+#    the ssh child it spawned (otherwise the child keeps holding the port and
+#    the next run lands on a different one).
 if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null; then
-  kill "$(cat "$PID_FILE")" 2>/dev/null || true
+  OLD_PID="$(cat "$PID_FILE")"
+  pkill -P "$OLD_PID" 2>/dev/null || true
+  kill "$OLD_PID" 2>/dev/null || true
   sleep 1
 fi
 
@@ -85,16 +94,14 @@ while [ "$PORT" -lt 8020 ]; do
 done
 echo "$PORT" > "$PORT_FILE"
 
-# 5. Self-healing tunnel: reconnect automatically if the WiFi drops it.
-nohup bash -c "
-  while true; do
-    ssh -N -L ${PORT}:localhost:${PI_REMOTE_PORT} \
-      -o ExitOnForwardFailure=yes -o ServerAliveInterval=5 -o ServerAliveCountMax=2 \
-      -o IdentitiesOnly=yes -i '${KEY}' '${PI_USER}@${PI_HOST}'
-    echo \"\$(date): tunnel dropped, reconnecting in 2s...\" >> '${LOG_FILE}'
-    sleep 2
-  done
-" >> "$LOG_FILE" 2>&1 &
+# 5. Self-healing tunnel: reconnects automatically if the WiFi drops it, and
+#    re-picks the path each time (LAN IP first, Tailscale fallback). The loop
+#    logic lives in pinpal_tunnel_loop.sh; we just feed it config and background it.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PINPAL_PRIMARY="$PI_HOST_PRIMARY" PINPAL_FALLBACK="$PI_HOST_FALLBACK" \
+PINPAL_USER="$PI_USER" PINPAL_KEY="$KEY" PINPAL_PORT="$PORT" \
+PINPAL_RPORT="$PI_REMOTE_PORT" PINPAL_LOG="$LOG_FILE" \
+  nohup bash "$SCRIPT_DIR/pinpal_tunnel_loop.sh" >> "$LOG_FILE" 2>&1 &
 disown
 echo $! > "$PID_FILE"
 

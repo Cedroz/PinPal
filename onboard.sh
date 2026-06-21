@@ -6,6 +6,7 @@
 #   2. Python venv + deps for pin-pal-ui         (skips if .venv already has the deps)
 #   3. pin-pal-ui MCP                            (registered via .mcp.json; clears stray dup)
 #   4. Connect the Pi's pin-pal probe server     (always over SSH tunnel; skips if added)
+#   5. Register the SessionStart hook            (auto-reconnects the tunnel each session)
 #
 # Run from the repo root:  ./onboard.sh
 # Needs: node/npm, python3, and the `claude` CLI on PATH.
