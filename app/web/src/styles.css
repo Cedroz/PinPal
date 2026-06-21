@@ -152,8 +152,6 @@ html, body, #root, .app { height: 100%; margin: 0; }
   font-weight: 600;
   cursor: pointer;
 }
-.actions .tidy { background: #2c303b; color: var(--text); }
-.actions .tidy:hover { color: var(--accent); }
 .actions .cancel { background: #2c303b; color: var(--text); }
 .actions .approve { background: var(--good); color: #fff; }
 .actions .approve:disabled { opacity: 0.5; cursor: default; }

@@ -75,11 +75,6 @@ export default function App() {
     requestAnimationFrame(() => fitView());
   }, [loaded, nodesInitialized, edges, setNodes, fitView]);
 
-  const onTidy = useCallback(() => {
-    setNodes((ns) => layoutGraph(ns, edges));
-    requestAnimationFrame(() => fitView());
-  }, [edges, setNodes, fitView]);
-
   const onConnect = useCallback(
     (c: Connection) => setEdges((eds) => addEdge({ ...c, type: "step" }, eds)),
     [setEdges],
@@ -193,9 +188,6 @@ export default function App() {
         ) : null}
 
         <Panel position="bottom-center" className="actions">
-          <button className="tidy" onClick={onTidy} title="Auto-arrange the layout">
-            Tidy
-          </button>
           <button className="cancel" onClick={() => cancel()}>
             Cancel
           </button>
