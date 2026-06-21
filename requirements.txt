@@ -1,14 +1,18 @@
-anthropic>=0.40.0
+# Pi dependencies (install on the Raspberry Pi)
+mcp[cli]>=1.0.0
+smbus2>=0.4.0
+pyserial>=3.5
+gpiozero>=2.0
+lgpio>=0.2.0
 opencv-python>=4.9.0
-deepgram-sdk==3.7.0
-redis[hiredis]>=5.0.0
 python-dotenv>=1.0.0
-numpy>=1.26.0
-mcp>=1.0.0
-sentry-sdk>=2.0.0
+esptool>=4.0.0
+mpremote>=1.0.0
 
-# Audio playback on Pi/Linux: sudo apt-get install mpg123
-# pyaudio requires portaudio: sudo apt-get install portaudio19-dev
-pyaudio>=0.2.14
+# picamera2 is a system package on Pi OS — do NOT pip install it:
+#   sudo apt-get install -y python3-picamera2
 
-# arize-otel -- uncomment when doing Phase 7.2
+# Flash toolchain (system packages):
+#   sudo apt-get install -y arduino-cli i2c-tools
+
+# Note: voice/Deepgram removed from MVP
