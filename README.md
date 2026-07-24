@@ -1,5 +1,7 @@
 # Pin Pal
 
+![Pin Pal](pinpalogo-github-readme-banner.png)
+
 A Raspberry Pi that clips onto a breadboard and gives Claude Code real hardware senses —
 I2C, GPIO, serial, and a camera — plus the ability to flash firmware and run code on a
 target board. You talk to Claude Code on your own laptop; it calls out to the Pi to look at
@@ -7,6 +9,8 @@ and act on whatever's wired up.
 
 This doc is the practical "how do I actually use this" guide. For the full design rationale
 (why vision is never trusted alone, the netlist pipeline, etc.) see `app/PIN_PAL.md`.
+
+![Pin Pal pipeline](pinpal_pipeline.png)
 
 ## What works right now
 
